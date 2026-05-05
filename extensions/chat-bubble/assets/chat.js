@@ -33,8 +33,13 @@
           closeButton: container.querySelector('.shop-ai-chat-close'),
           chatInput: container.querySelector('.shop-ai-chat-input input'),
           sendButton: container.querySelector('.shop-ai-chat-send'),
+          callButton: container.querySelector('.shop-ai-chat-call'),
           messagesContainer: container.querySelector('.shop-ai-chat-messages')
         };
+        
+        // Vapi instance
+        this.vapiInstance = null;
+        this.isCallActive = false;
 
         // Detect mobile device
         this.isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -52,7 +57,55 @@
        * Set up all event listeners for UI interactions
        */
       setupEventListeners: function() {
-        const { chatBubble, closeButton, chatInput, sendButton, messagesContainer } = this.elements;
+        const { chatBubble, closeButton, chatInput, sendButton, callButton, messagesContainer } = this.elements;
+
+        // Initialize Vapi if available
+        if (window.Vapi) {
+          // Replace with user's actual Public Key which they put in .env and make available to frontend
+          // For now using placeholder or expecting it injected
+          const vapiPublicKey = window.shopChatConfig?.vapiPublicKey || 'YOUR_VAPI_PUBLIC_KEY'; 
+          this.vapiInstance = new window.Vapi(vapiPublicKey);
+
+          this.vapiInstance.on('call-start', () => {
+            this.isCallActive = true;
+            callButton.classList.add('active');
+            ShopAIChat.Message.add("Call connected. You can speak now.", 'assistant', messagesContainer);
+          });
+
+          this.vapiInstance.on('call-end', () => {
+            this.isCallActive = false;
+            callButton.classList.remove('active');
+            ShopAIChat.Message.add("Call ended.", 'assistant', messagesContainer);
+          });
+
+          this.vapiInstance.on('message', (message) => {
+            if (message.type === 'transcript' && message.transcriptType === 'final') {
+              if (message.role === 'user') {
+                ShopAIChat.Message.add(message.transcript, 'user', messagesContainer);
+              } else if (message.role === 'assistant') {
+                ShopAIChat.Message.add(message.transcript, 'assistant', messagesContainer);
+              }
+            } else if (message.type === 'message' && message.message?.role === 'assistant') {
+              // Optionally handle text messages from assistant if 'message' event is fired instead of transcript
+            }
+          });
+        }
+
+        // Handle Call button click
+        callButton.addEventListener('click', () => {
+          if (!this.vapiInstance) {
+            ShopAIChat.Message.add("Voice chat is not available.", 'assistant', messagesContainer);
+            return;
+          }
+          if (this.isCallActive) {
+            this.vapiInstance.stop();
+          } else {
+            // Start the call with assistant ID
+            // You will need an assistant ID from Vapi dashboard
+            const assistantId = window.shopChatConfig?.vapiAssistantId || 'YOUR_VAPI_ASSISTANT_ID';
+            this.vapiInstance.start(assistantId);
+          }
+        });
 
         // Toggle chat window visibility
         chatBubble.addEventListener('click', () => this.toggleChatWindow());
@@ -63,7 +116,7 @@
         // Send message when pressing Enter in input
         chatInput.addEventListener('keypress', (e) => {
           if (e.key === 'Enter' && chatInput.value.trim() !== '') {
-            ShopAIChat.Message.send(chatInput, messagesContainer);
+            this.handleSendMessage(chatInput, messagesContainer);
 
             // On mobile, handle keyboard
             if (this.isMobile) {
@@ -76,7 +129,7 @@
         // Send message when clicking send button
         sendButton.addEventListener('click', () => {
           if (chatInput.value.trim() !== '') {
-            ShopAIChat.Message.send(chatInput, messagesContainer);
+            this.handleSendMessage(chatInput, messagesContainer);
 
             // On mobile, focus input after sending
             if (this.isMobile) {
@@ -97,6 +150,21 @@
             }
           }
         });
+      },
+
+      handleSendMessage: function(chatInput, messagesContainer) {
+        const text = chatInput.value.trim();
+        if (this.isCallActive && this.vapiInstance) {
+           this.vapiInstance.send({
+             type: "add-message",
+             message: { role: "user", content: text }
+           });
+           ShopAIChat.Message.add(text, 'user', messagesContainer);
+           chatInput.value = '';
+           ShopAIChat.UI.scrollToBottom();
+        } else {
+           ShopAIChat.Message.send(chatInput, messagesContainer);
+        }
       },
 
       /**

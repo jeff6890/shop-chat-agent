@@ -344,7 +344,7 @@
     border-color: #5046e4;
   }
 
-  .shop-ai-chat-send {
+  .shop-ai-chat-send, .shop-ai-chat-call {
     background-color: #5046e4;
     color: white;
     border: none;
@@ -355,6 +355,27 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+  }
+
+  .shop-ai-chat-call.active {
+    background-color: #e53e3e;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.7);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 10px rgba(229, 62, 62, 0);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(229, 62, 62, 0);
+    }
   }
 
   .shop-ai-typing-indicator {
